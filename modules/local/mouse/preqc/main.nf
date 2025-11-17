@@ -19,6 +19,7 @@ process PRE_QC {
 
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
+    def b0_threshold = task.ext.b0_thr_extract_b0 ? "--b0_threshold $task.ext.b0_thr_extract_b0" : ""
 
     """
     echo "This module is highly experimental"
@@ -31,10 +32,19 @@ process PRE_QC {
     if [ "\$strides" == "-1 2 3 4" ]; then
         echo "Strides are not (1,2,3,4), converting to 1,2,3,4."
         echo "Strides were: \$strides"
-        echo "Strides are now: \$strides"
+        echo "Strides are now: 1,2,3,4"
 
         mrconvert $dwi ${prefix}__stride_dwi.nii.gz -strides 1,2,3,4
         scil_gradients_modify_axes.py $bvec ${prefix}__stride_dwi.bvec -1 2 3
+        cp $bval ${prefix}__stride_dwi.bval
+    
+    elif [ "\$strides" == "1 -2 3 4" ]; then
+        echo "Strides are not (1,2,3,4), converting to 1,2,3,4."
+        echo "Strides were: \$strides"
+        echo "Strides are now: 1,2,3,4"
+
+        mrconvert $dwi ${prefix}__stride_dwi.nii.gz -strides 1,2,3,4
+        cp $bvec ${prefix}__stride_dwi.bvec
         cp $bval ${prefix}__stride_dwi.bval
 
     elif [ "\$strides" == "1 2 3 4" ]; then
@@ -56,7 +66,8 @@ process PRE_QC {
         --not_all \
         --rgb ${prefix}_rgb_pre.nii.gz \
         --fa ${prefix}_fa_pre.nii.gz \
-        --evecs ${prefix}_peaks_pre.nii.gz -f
+        --evecs ${prefix}_peaks_pre.nii.gz \
+        $b0_threshold -f
 
     # Check gradient directions
     scil_gradients_validate_correct ${prefix}__stride_dwi.bvec \
@@ -68,9 +79,11 @@ process PRE_QC {
     scil_dti_metrics ${prefix}__stride_dwi.nii.gz ${prefix}__stride_dwi.bval ${prefix}__stride_corrected_dwi.bvec \
         --not_all \
         --rgb ${prefix}_rgb_post.nii.gz \
+        $b0_threshold \
 
     # Check gradient sampling scheme
-    scil_gradients_validate_sampling ${prefix}__stride_dwi.bval ${prefix}__stride_dwi.bvec --save_viz ./ -f > log_sampling.txt
+    scil_gradients_validate_sampling ${prefix}__stride_dwi.bval ${prefix}__stride_dwi.bvec $b0_threshold \
+    --save_viz ./ -f > log_sampling.txt
     echo \$(cat log_sampling.txt)
     convert +append inputed_gradient_scheme.png optimized_gradient_scheme.png ${prefix}__sampling_mqc.png
 

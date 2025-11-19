@@ -135,7 +135,7 @@ workflow {
             .map{ meta, dwi, _bval, _bvec -> tuple(meta, dwi)}
     }
 
-    if (params.run_resampling){
+    if (params.run_resampling) {
         RESAMPLE_DWI(ch_after_n4.map{ meta, dwi -> [meta, dwi, []] }) // Add an empty list for the optional reference image
         RESAMPLE_MASK(NNUNET.out.mask.map{ meta, mask -> [meta, mask, []] })
         IMAGE_CONVERT(RESAMPLE_MASK.out.image)
@@ -144,9 +144,9 @@ workflow {
         mask_after_resample = IMAGE_CONVERT.out.image
     }
     else{
-        dwi_after_resample = ch_after_n4.map{ meta, dwi -> [meta, dwi, []]}
+        dwi_after_resample = ch_after_n4
         IMAGE_CONVERT(NNUNET.out.mask)
-        mask_after_resample = mask_after_resample
+        mask_after_resample = IMAGE_CONVERT.out.image
     }
     
     ch_for_mouse_registration = dwi_after_resample
@@ -164,18 +164,15 @@ workflow {
 
     /* FODF */ 
     RECONST_FRF(ch_for_reconst.map{ it + [[], [], []]})
-    ch_multiqc_files = ch_multiqc_files.mix(RECONST_FRF.out.mqc)
     ch_for_reconst_fodf = ch_for_reconst
                             .join(RECONST_DTIMETRICS.out.fa)
                             .join(RECONST_DTIMETRICS.out.md)
                             .join(RECONST_FRF.out.frf)
                             .map{ it + [[], []]}
     RECONST_FODF(ch_for_reconst_fodf)
-    ch_multiqc_files = ch_multiqc_files.mix(RECONST_FODF.out.mqc)
 
     /* QBALL */
     RECONST_QBALL(ch_for_reconst)
-    ch_multiqc_files = ch_multiqc_files.mix(RECONST_QBALL.out.mqc)
 
     if (params.use_fodf){
         reconst_sh = RECONST_FODF.out.fodf

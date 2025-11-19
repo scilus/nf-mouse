@@ -65,6 +65,10 @@ workflow {
     // ** Now call your input workflow to fetch your files ** //
     data = get_data()
 
+    if ( params.use_fodf_for_tracking && ! params.run_tracking ) {
+        error "The parameter use_fodf_for_tracking cannot be enabled if run_tracking is disabled."
+    }
+
     ch_dwi_bvalbvec = data.dwi
         .multiMap { meta, dwi, bval, bvec ->
             dwi:    [ meta, dwi ]
@@ -73,7 +77,7 @@ workflow {
             bvec:   [meta, bvec]
         }
 
-    if (params.run_preqc){
+    if ( params.run_preqc ) {
         PRE_QC(ch_dwi_bvalbvec.dwi.join(ch_dwi_bvalbvec.bvs_files))
         ch_multiqc_files = ch_multiqc_files.mix(PRE_QC.out.rgb_mqc)
         ch_multiqc_files = ch_multiqc_files.mix(PRE_QC.out.sampling_mqc)
@@ -121,7 +125,7 @@ workflow {
     
     NNUNET(ch_nnunet)
 
-    if (params.run_n4) {
+    if ( params.run_n4 ) {
         ch_N4 = ch_after_eddy
             .map{ meta, dwi, _bval, _bvec ->
                     tuple(meta, dwi)}
@@ -134,52 +138,63 @@ workflow {
         ch_after_n4 = ch_after_eddy
             .map{ meta, dwi, _bval, _bvec -> tuple(meta, dwi)}
     }
-    RESAMPLE_DWI(ch_after_n4.map{ meta, dwi -> [meta, dwi, []] }) // Add an empty list for the optional reference image
-    RESAMPLE_MASK(NNUNET.out.mask.map{ meta, mask -> [meta, mask, []] })
 
-    IMAGE_CONVERT(RESAMPLE_MASK.out.image)
+    if ( params.run_resampling ) {
+        RESAMPLE_DWI(ch_after_n4.map{ meta, dwi -> [meta, dwi, []] }) // Add an empty list for the optional reference image
+        RESAMPLE_MASK(NNUNET.out.mask.map{ meta, mask -> [meta, mask, []] })
+        IMAGE_CONVERT(RESAMPLE_MASK.out.image)
+
+        dwi_after_resample = RESAMPLE_DWI.out.image
+        mask_after_resample = IMAGE_CONVERT.out.image
+    }
+    else {
+        dwi_after_resample = ch_after_n4
+        IMAGE_CONVERT(NNUNET.out.mask)
+        mask_after_resample = IMAGE_CONVERT.out.image
+    }
     
-    ch_for_mouse_registration = RESAMPLE_DWI.out.image
+    ch_for_mouse_registration = dwi_after_resample
                                     .join(ch_after_eddy.map{ [it[0], it[2], it[3]] })
-                                    .join(IMAGE_CONVERT.out.image)
+                                    .join(mask_after_resample)
     MOUSE_REGISTRATION(ch_for_mouse_registration)
     ch_multiqc_files = ch_multiqc_files.mix(MOUSE_REGISTRATION.out.mqc)
 
-    ch_for_reconst = RESAMPLE_DWI.out.image
+    ch_for_reconst = dwi_after_resample
                                     .join(ch_after_eddy.map{ [it[0], it[2], it[3]] })
-                                    .join(IMAGE_CONVERT.out.image)
+                                    .join(mask_after_resample)
 
     RECONST_DTIMETRICS(ch_for_reconst)
     ch_multiqc_files = ch_multiqc_files.mix(RECONST_DTIMETRICS.out.mqc)
 
+    /* FODF */ 
+    RECONST_FRF(ch_for_reconst.map{ it + [[], [], []]})
+    ch_for_reconst_fodf = ch_for_reconst
+                            .join(RECONST_DTIMETRICS.out.fa)
+                            .join(RECONST_DTIMETRICS.out.md)
+                            .join(RECONST_FRF.out.frf)
+                            .map{ it + [[], []]}
+    RECONST_FODF(ch_for_reconst_fodf)
 
-    if (params.use_fodf)
-    {
-        RECONST_FRF(ch_for_reconst
-                        .map{ it + [[], [], []]})
+    /* QBALL */
+    RECONST_QBALL(ch_for_reconst)
 
-        ch_for_reconst_fodf = ch_for_reconst
-                                .join(RECONST_DTIMETRICS.out.fa)
-                                .join(RECONST_DTIMETRICS.out.md)
-                                .join(RECONST_FRF.out.frf)
-                                .map{ it + [[], []]}
-        RECONST_FODF(ch_for_reconst_fodf)
+    if ( params.use_fodf_for_tracking ) {
         reconst_sh = RECONST_FODF.out.fodf
     }
-    else
-    {
-        RECONST_QBALL(ch_for_reconst)
+    else {
         reconst_sh = RECONST_QBALL.out.qball
     }
 
-    TRACKING_MASK(IMAGE_CONVERT.out.image
-                    .join(MOUSE_REGISTRATION.out.ANO))
-    ch_multiqc_files = ch_multiqc_files.mix(TRACKING_MASK.out.mqc)
+    if ( params.run_tracking ) {
+        TRACKING_MASK(mask_after_resample
+                        .join(MOUSE_REGISTRATION.out.ANO))
+        ch_multiqc_files = ch_multiqc_files.mix(TRACKING_MASK.out.mqc)
 
-    TRACKING_LOCALTRACKING(TRACKING_MASK.out.tracking_mask
-                .join(reconst_sh)
-                .join(TRACKING_MASK.out.seeding_mask))
-    ch_multiqc_files = ch_multiqc_files.mix(TRACKING_LOCALTRACKING.out.mqc)
+        TRACKING_LOCALTRACKING(TRACKING_MASK.out.tracking_mask
+                    .join(reconst_sh)
+                    .join(TRACKING_MASK.out.seeding_mask))
+        ch_multiqc_files = ch_multiqc_files.mix(TRACKING_LOCALTRACKING.out.mqc)
+    }
 
     MOUSE_EXTRACTMASKS(MOUSE_REGISTRATION.out.ANO_LR)
 

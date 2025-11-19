@@ -65,6 +65,10 @@ workflow {
     // ** Now call your input workflow to fetch your files ** //
     data = get_data()
 
+    if ( params.use_fodf_for_tracking && ! params.run_tracking ) {
+        error "The parameter use_fodf_for_tracking cannot be enabled if run_tracking is disabled."
+    }
+
     ch_dwi_bvalbvec = data.dwi
         .multiMap { meta, dwi, bval, bvec ->
             dwi:    [ meta, dwi ]
@@ -73,7 +77,7 @@ workflow {
             bvec:   [meta, bvec]
         }
 
-    if (params.run_preqc){
+    if ( params.run_preqc ) {
         PRE_QC(ch_dwi_bvalbvec.dwi.join(ch_dwi_bvalbvec.bvs_files))
         ch_multiqc_files = ch_multiqc_files.mix(PRE_QC.out.rgb_mqc)
         ch_multiqc_files = ch_multiqc_files.mix(PRE_QC.out.sampling_mqc)
@@ -121,7 +125,7 @@ workflow {
     
     NNUNET(ch_nnunet)
 
-    if (params.run_n4) {
+    if ( params.run_n4 ) {
         ch_N4 = ch_after_eddy
             .map{ meta, dwi, _bval, _bvec ->
                     tuple(meta, dwi)}
@@ -135,7 +139,7 @@ workflow {
             .map{ meta, dwi, _bval, _bvec -> tuple(meta, dwi)}
     }
 
-    if (params.run_resampling) {
+    if ( params.run_resampling ) {
         RESAMPLE_DWI(ch_after_n4.map{ meta, dwi -> [meta, dwi, []] }) // Add an empty list for the optional reference image
         RESAMPLE_MASK(NNUNET.out.mask.map{ meta, mask -> [meta, mask, []] })
         IMAGE_CONVERT(RESAMPLE_MASK.out.image)
@@ -143,7 +147,7 @@ workflow {
         dwi_after_resample = RESAMPLE_DWI.out.image
         mask_after_resample = IMAGE_CONVERT.out.image
     }
-    else{
+    else {
         dwi_after_resample = ch_after_n4
         IMAGE_CONVERT(NNUNET.out.mask)
         mask_after_resample = IMAGE_CONVERT.out.image
@@ -174,14 +178,14 @@ workflow {
     /* QBALL */
     RECONST_QBALL(ch_for_reconst)
 
-    if (params.use_fodf){
+    if ( params.use_fodf_for_tracking ) {
         reconst_sh = RECONST_FODF.out.fodf
     }
-    else{
+    else {
         reconst_sh = RECONST_QBALL.out.qball
     }
 
-    if (params.run_tracking){
+    if ( params.run_tracking ) {
         TRACKING_MASK(mask_after_resample
                         .join(MOUSE_REGISTRATION.out.ANO))
         ch_multiqc_files = ch_multiqc_files.mix(TRACKING_MASK.out.mqc)

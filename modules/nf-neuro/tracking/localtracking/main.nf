@@ -59,7 +59,7 @@ process TRACKING_LOCALTRACKING {
 
     local_step="$local_step"
     if [[ -z "$local_step" ]] && [[ -n "$local_step_pct" ]]; then
-        pixdim=\$(scil_header_print_info $wm --keys pixdim | awk '{for(i=2;i<=4;i++) if(\$i<min || min=="") min=\$i} END {print min}')
+        pixdim=\$(scil_header_print_info $wm --keys pixdim | tr -d '[]' | awk '{for(i=2;i<=4;i++) if(\$i>0 && (\$i<min || min=="")) min=\$i} END {print min}')
         local_step=\$(awk -v pixdim="\$pixdim" -v pct="$local_step_pct" 'BEGIN {printf "--step %.6f", pixdim * pct / 100}')
     fi
 

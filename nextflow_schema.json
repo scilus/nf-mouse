@@ -42,11 +42,13 @@
             "properties": {
                 "use_preqc": {
                     "type": "boolean",
+                    "default": false, 
                     "description": "Set it to true, if you want to use the output of the preqc. Needs to be combined with profile run_qc",
                     "fa_icon": "fas fa-brain"
                 },
                 "use_fodf": {
                     "type": "boolean",
+                    "default": false,
                     "description": "Set it to true if you want to fODF instead of QBall reconstruction.",
                     "fa_icon": "fas fa-brain"
                 },

@@ -1,4 +1,6 @@
-![alt text](assets/logo_bg.png "nf-mouse")
+![alt text](assets/nf-mouse-light-logo.png "nf-mouse")
+
+# nf-mouse
 
 nf-mouse pipeline is developed by the Sherbrooke Connectivity Imaging Lab (SCIL) and Neurofunctional Imaging Group (GIN-IMN) in order to process diffusion MRI dataset from the raw data to the tractography.
 

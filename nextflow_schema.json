@@ -61,7 +61,7 @@
             }
         },
         "skip_steps_options": {
-            "title": "Skip steps options",
+            "title": "Steps options",
             "type": "object",
             "fa_icon": "fas fa-forward",
             "description": "Options to skip specific steps of the pipeline.",
@@ -142,10 +142,10 @@
             }
         },
         "tracking_options": {
-            "title": "Skip steps options",
+            "title": "Tracking options",
             "type": "object",
             "fa_icon": "fas fa-forward",
-            "description": "Options to skip specific steps of the pipeline.",
+            "description": "Options specific to the tracking algorithm.",
             "properties": {
                 "local_nbr_seeds": {
                     "type": "integer",

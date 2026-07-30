@@ -34,9 +34,6 @@ workflow NNUNET {
 
         ch_for_bet = PREPARE_NNUNET_DWI.out.nnunetready
             .join(PREPARE_NNUNET_B0.out.nnunetready, by: 0, remainder: true)
-            .join(ch_mask, by: 0, remainder: true)
-            .map { meta, dwi, b0, mask ->   
-                [meta, dwi, b0, mask ?: [   ]]}  // Use empty list if mask is null
 
         MOUSE_BETNNUNET(ch_for_bet)
 
@@ -46,7 +43,7 @@ workflow NNUNET {
         MOUSE_REGRIDMASK(ch_for_regrid)
 
     emit:
-        mask = MOUSE_REGRIDMASK.out.mask                     // channel: [ val(meta), mask ]
+        mask                = MOUSE_REGRIDMASK.out.mask     // channel: [ val(meta), mask ]
         mqc                 = ch_multiqc_files              // channel: [ val(meta), mqc ]
         versions            = ch_versions                   // channel: [ versions.yml ]
 }
